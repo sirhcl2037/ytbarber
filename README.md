@@ -15,6 +15,8 @@ npm start
 
 Open [ytbarber](http://127.0.0.1:8787/clips/). Load a YouTube link, set the start and end times, and choose an available video stream. Use **Preview selection** to check the segment, then select **Prepare download** and **Download clip**. Keep the processor running until the download finishes.
 
+On Windows, double-click `Start ytbarber.cmd` to start the processor. Keep its window open while using ytbarber. If the page reports a connection error, start the processor and select **Check connection** under **Connection settings**.
+
 `npm run setup` installs yt-dlp and FFmpeg into `.tools/python`. Run it again to update the tools if YouTube extraction stops working. To use a specific Python interpreter, run `npm run setup -- --python /path/to/python` and set `PYTHON_BIN` in `.env`.
 
 ## Export formats

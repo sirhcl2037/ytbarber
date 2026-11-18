@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const config = window.CLIPS_CONFIG || {};
-let apiBase = (sessionStorage.getItem('clips.apiBase') || config.apiBase || '').replace(/\/$/, '');
+let apiBase = (sessionStorage.getItem('clips.apiBase') ?? config.apiBase ?? '').replace(/\/$/, '');
 let password = sessionStorage.getItem('clips.password') || '';
 let video = null, activeJob = null, polling = false, transferPoll = null;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -17,8 +17,15 @@ function seconds(text) {
 function notice(message = '') { $('notice').textContent = message; $('notice').hidden = !message; }
 async function api(route, options = {}) {
   let response;
-  try { response = await fetch(`${apiBase}${route}`, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(password ? { Authorization: `Bearer ${password}` } : {}) }, signal: AbortSignal.timeout(20000) }); }
-  catch { throw new Error('Cannot reach the video server. Check Connection settings, or make sure the local server is running.'); }
+  const url = new URL(`${apiBase}${route}`, location.origin);
+  try { response = await fetch(url, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(password ? { Authorization: `Bearer ${password}` } : {}) }, signal: AbortSignal.timeout(route === '/api/health' ? 5000 : 20000) }); }
+  catch {
+    $('connection-status').textContent = 'Processor unreachable';
+    $('settings').open = true;
+    const local = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+    const action = local ? 'Run npm start from the ytbarber folder, then click Check connection.' : 'Check the processor URL in Connection settings, then click Check connection.';
+    throw new Error(`Cannot reach the video processor at ${url.origin}. ${action}`);
+  }
   let body;
   try { body = await response.json(); } catch { throw new Error('The video backend is not configured here. Set its URL in Connection settings.'); }
   if (!response.ok) throw new Error(body.error || `Server returned ${response.status}.`);
@@ -148,15 +155,22 @@ $('connection-form').addEventListener('submit', async event => {
   }
   apiBase = value; password = $('password').value;
   sessionStorage.setItem('clips.apiBase', apiBase); sessionStorage.setItem('clips.password', password);
-  notice(); await health();
+  await health();
 });
+$('check-connection').addEventListener('click', health);
 async function health() {
+  const check = $('check-connection');
+  if (check.disabled) return;
+  check.disabled = true;
+  $('connection-status').textContent = 'Checking connection…';
   try {
     const result = await api('/api/health');
     if (!result.ok) throw new Error('Video server unavailable.');
     $('connection-status').textContent = result.passwordRequired ? 'Server online · password required' : 'Local server online';
+    notice();
     if (result.passwordRequired && !password) { $('settings').open = true; notice('Enter the video server password in Connection settings to begin.'); }
-  } catch (error) { $('connection-status').textContent = 'Setup needed'; $('settings').open = true; notice(error.message); }
+  } catch (error) { $('connection-status').textContent = 'Processor unavailable'; $('settings').open = true; notice(error.message); }
+  finally { check.disabled = false; }
 }
 if (config.build) $('build').textContent = config.build;
 await health();
